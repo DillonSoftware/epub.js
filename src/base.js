@@ -1,7 +1,7 @@
 'use strict';
 
 var EPUBJS = EPUBJS || {};
-EPUBJS.VERSION = "0.2.1";
+EPUBJS.VERSION = "0.2.12";
 
 EPUBJS.plugins = EPUBJS.plugins || {};
 
@@ -18,7 +18,7 @@ EPUBJS.Render = {};
 
 		//-- var book = ePub("path/to/book.epub", { restore: true })
 		if(typeof(arguments[0]) != 'undefined' &&
-			typeof arguments[0] === 'string') {
+			(typeof arguments[0] === 'string' || arguments[0] instanceof ArrayBuffer)) {
 
 			bookPath = arguments[0];
 
@@ -40,7 +40,7 @@ EPUBJS.Render = {};
 		*   book.open("path/to/book.epub");
 		*/
 
-		if( arguments[0] && typeof arguments[0] === 'object' ) {
+		if( arguments[0] && typeof arguments[0] === 'object' && !(arguments[0] instanceof ArrayBuffer)) {
 			options = arguments[0];
 		}
 
@@ -48,19 +48,13 @@ EPUBJS.Render = {};
 		return new EPUBJS.Book(options);
 	};
 
-	_.extend(ePub, {
-		noConflict : function() {
-			root.ePub = previousEpub;
-			return this;
-		}
-	});
-
 	//exports to multiple environments
-	if (typeof define === 'function' && define.amd)
-	//AMD
-	define(function(){ return ePub; });
-	else if (typeof module != "undefined" && module.exports)
-	//Node
-	module.exports = ePub;
+	if (typeof define === 'function' && define.amd) {
+		//AMD
+		define(['rsvp'], function(){ return ePub; });
+	} else if (typeof module != "undefined" && module.exports) {
+		//Node
+		module.exports = ePub;
+	}
 
 })(window);

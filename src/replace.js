@@ -8,17 +8,37 @@ EPUBJS.replace.hrefs = function(callback, renderer){
 		var href = link.getAttribute("href"),
 				isRelative = href.search("://"),
 				directory,
-				relative;
+				relative,
+				location,
+				base,
+				uri,
+				url;
 
 		if(isRelative != -1){
 
 			link.setAttribute("target", "_blank");
 
 		}else{
-			
-			directory = EPUBJS.core.uri(renderer.render.window.location.href).directory;
-			relative = EPUBJS.core.resolveUrl(directory, href);
-			
+			// Links may need to be resolved, such as ../chp1.xhtml
+			base = renderer.render.docEl.querySelector('base');
+			url = base.getAttribute("href");
+			uri = EPUBJS.core.uri(url);
+			directory = uri.directory;
+
+			if(directory) {
+				// We must ensure that the file:// protocol is preserved for
+				// local file links, as in certain contexts (such as under
+				// Titanium), file links without the file:// protocol will not
+				// work
+				if (uri.protocol === "file") {
+					relative = EPUBJS.core.resolveUrl(uri.base, href);
+				} else {
+					relative = EPUBJS.core.resolveUrl(directory, href);
+				}
+			} else {
+				relative = href;
+			}
+
 			link.onclick = function(){
 				book.goto(relative);
 				return false;
@@ -28,7 +48,7 @@ EPUBJS.replace.hrefs = function(callback, renderer){
 		done();
 
 	};
-	
+
 	renderer.replace("a[href]", replacments, callback);
 
 };
@@ -48,8 +68,8 @@ EPUBJS.replace.resources = function(callback, renderer){
 };
 
 EPUBJS.replace.svg = function(callback, renderer) {
-	
-	renderer.replaceWithStored("image", "xlink:href", function(_store, full, done){
+
+	renderer.replaceWithStored("svg image", "xlink:href", function(_store, full, done){
 		_store.getUrl(full).then(done);
 	}, callback);
 
@@ -58,7 +78,7 @@ EPUBJS.replace.svg = function(callback, renderer) {
 EPUBJS.replace.srcs = function(_store, full, done){
 
 	_store.getUrl(full).then(done);
-	
+
 };
 
 //-- Replaces links in head, such as stylesheets - link[href]
@@ -67,12 +87,16 @@ EPUBJS.replace.links = function(_store, full, done, link){
 	if(link.getAttribute("rel") === "stylesheet") {
 		EPUBJS.replace.stylesheets(_store, full).then(function(url, full){
 			// done
-			setTimeout(function(){
-				done(url, full);
-			}, 5); //-- Allow for css to apply before displaying chapter
+			done(url, full);
+		},  function(reason) {
+			// we were unable to replace the style sheets
+			done(null);
 		});
 	}else{
-		_store.getUrl(full).then(done);
+		_store.getUrl(full).then(done, function(reason) {
+			// we were unable to get the url, signal to upper layer
+			done(null);
+		});
 	}
 };
 
@@ -92,10 +116,12 @@ EPUBJS.replace.stylesheets = function(_store, full) {
 
 			deferred.resolve(url);
 
-		}, function(e) {
-			console.error(e);
+		}, function(reason) {
+			deferred.reject(reason);
 		});
-		
+
+	}, function(reason) {
+		deferred.reject(reason);
 	});
 
 	return deferred.promise;
@@ -105,7 +131,7 @@ EPUBJS.replace.cssUrls = function(_store, base, text){
 	var deferred = new RSVP.defer(),
 		promises = [],
 		matches = text.match(/url\(\'?\"?([^\'|^\"^\)]*)\'?\"?\)/g);
-	
+
 	if(!_store) return;
 
 	if(!matches){
@@ -116,15 +142,17 @@ EPUBJS.replace.cssUrls = function(_store, base, text){
 	matches.forEach(function(str){
 		var full = EPUBJS.core.resolveUrl(base, str.replace(/url\(|[|\)|\'|\"]/g, ''));
 		var replaced = _store.getUrl(full).then(function(url){
-				text = text.replace(str, 'url("'+url+'")');
-			});
-		
+			text = text.replace(str, 'url("'+url+'")');
+		}, function(reason) {
+			deferred.reject(reason);
+		});
+
 		promises.push(replaced);
 	});
-	
+
 	RSVP.all(promises).then(function(){
 		deferred.resolve(text);
 	});
-	
+
 	return deferred.promise;
 };

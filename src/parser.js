@@ -5,19 +5,19 @@ EPUBJS.Parser = function(baseUrl){
 EPUBJS.Parser.prototype.container = function(containerXml){
 		//-- <rootfile full-path="OPS/package.opf" media-type="application/oebps-package+xml"/>
 		var rootfile, fullpath, folder, encoding;
-		
+
 		if(!containerXml) {
 			console.error("Container File Not Found");
 			return;
 		}
-		
+
 		rootfile = containerXml.querySelector("rootfile");
-		
+
 		if(!rootfile) {
 			console.error("No RootFile Found");
 			return;
 		}
-		
+
 		fullpath = rootfile.getAttribute('full-path');
 		folder = EPUBJS.core.uri(fullpath).directory;
 		encoding = containerXml.xmlEncoding;
@@ -32,19 +32,19 @@ EPUBJS.Parser.prototype.container = function(containerXml){
 
 EPUBJS.Parser.prototype.identifier = function(packageXml){
 	var metadataNode;
-	
+
 	if(!packageXml) {
 		console.error("Package File Not Found");
 		return;
 	}
-	
+
 	metadataNode = packageXml.querySelector("metadata");
-	
+
 	if(!metadataNode) {
 		console.error("No Metadata Found");
 		return;
 	}
-	
+
 	return this.getElementText(metadataNode, "identifier");
 };
 
@@ -55,48 +55,53 @@ EPUBJS.Parser.prototype.packageContents = function(packageXml, baseUrl){
 	var spineNodeIndex;
 	var spine;
 	var spineIndexByURL;
-	
+	var metadata;
+
 	if(baseUrl) this.baseUrl = baseUrl;
-	
+
 	if(!packageXml) {
 		console.error("Package File Not Found");
 		return;
 	}
-	
+
 	metadataNode = packageXml.querySelector("metadata");
 	if(!metadataNode) {
 		console.error("No Metadata Found");
 		return;
 	}
-	
+
 	manifestNode = packageXml.querySelector("manifest");
 	if(!manifestNode) {
 		console.error("No Manifest Found");
 		return;
 	}
-	
+
 	spineNode = packageXml.querySelector("spine");
 	if(!spineNode) {
 		console.error("No Spine Found");
 		return;
 	}
-	
+
 	manifest = parse.manifest(manifestNode);
 	navPath = parse.findNavPath(manifestNode);
-	tocPath = parse.findTocPath(manifestNode);
+	tocPath = parse.findTocPath(manifestNode, spineNode);
 	coverPath = parse.findCoverPath(manifestNode);
 
 	spineNodeIndex = Array.prototype.indexOf.call(spineNode.parentNode.childNodes, spineNode);
-	
+
 	spine = parse.spine(spineNode, manifest);
-	
+
 	spineIndexByURL = {};
 	spine.forEach(function(item){
 		spineIndexByURL[item.href] = item.index;
 	});
 
+	metadata = parse.metadata(metadataNode);
+
+	metadata.direction = spineNode.getAttribute("page-progression-direction");
+
 	return {
-		'metadata' : parse.metadata(metadataNode),
+		'metadata' : metadata,
 		'spine'    : spine,
 		'manifest' : manifest,
 		'navPath'  : navPath,
@@ -107,15 +112,29 @@ EPUBJS.Parser.prototype.packageContents = function(packageXml, baseUrl){
 	};
 };
 
-//-- Find TOC NAV: media-type="application/xhtml+xml" href="toc.ncx"
+//-- Find TOC NAV
 EPUBJS.Parser.prototype.findNavPath = function(manifestNode){
-  var node = manifestNode.querySelector("item[properties^='nav']");
+	// Find item with property 'nav'
+	// Should catch nav irregardless of order
+  var node = manifestNode.querySelector("item[properties$='nav'], item[properties^='nav '], item[properties*=' nav ']");
   return node ? node.getAttribute('href') : false;
 };
 
 //-- Find TOC NCX: media-type="application/x-dtbncx+xml" href="toc.ncx"
-EPUBJS.Parser.prototype.findTocPath = function(manifestNode){
+EPUBJS.Parser.prototype.findTocPath = function(manifestNode, spineNode){
 	var node = manifestNode.querySelector("item[media-type='application/x-dtbncx+xml']");
+	var tocId;
+
+	// If we can't find the toc by media-type then try to look for id of the item in the spine attributes as
+	// according to http://www.idpf.org/epub/20/spec/OPF_2.0.1_draft.htm#Section2.4.1.2,
+	// "The item that describes the NCX must be referenced by the spine toc attribute."
+	if (!node) {
+		tocId = spineNode.getAttribute("toc");
+		if(tocId) {
+			node = manifestNode.querySelector("item[id='" + tocId + "']");
+		}
+	}
+
 	return node ? node.getAttribute('href') : false;
 };
 
@@ -129,25 +148,24 @@ EPUBJS.Parser.prototype.findCoverPath = function(manifestNode){
 EPUBJS.Parser.prototype.metadata = function(xml){
 	var metadata = {},
 			p = this;
-	
+
 	metadata.bookTitle = p.getElementText(xml, 'title');
 	metadata.creator = p.getElementText(xml, 'creator');
 	metadata.description = p.getElementText(xml, 'description');
-	
+
 	metadata.pubdate = p.getElementText(xml, 'date');
-	
+
 	metadata.publisher = p.getElementText(xml, 'publisher');
-	
+
 	metadata.identifier = p.getElementText(xml, "identifier");
 	metadata.language = p.getElementText(xml, "language");
 	metadata.rights = p.getElementText(xml, "rights");
-	
+
 	metadata.modified_date = p.querySelectorText(xml, "meta[property='dcterms:modified']");
 	metadata.layout = p.querySelectorText(xml, "meta[property='rendition:layout']");
 	metadata.orientation = p.querySelectorText(xml, "meta[property='rendition:orientation']");
 	metadata.spread = p.querySelectorText(xml, "meta[property='rendition:spread']");
-	// metadata.page_prog_dir = packageXml.querySelector("spine").getAttribute("page-progression-direction");
-	
+
 	return metadata;
 };
 
@@ -156,7 +174,7 @@ EPUBJS.Parser.prototype.getElementText = function(xml, tag){
 		el;
 
 	if(!found || found.length === 0) return '';
-	
+
 	el = found[0];
 
 	if(el.childNodes.length){
@@ -164,7 +182,7 @@ EPUBJS.Parser.prototype.getElementText = function(xml, tag){
 	}
 
 	return '';
-	
+
 };
 
 EPUBJS.Parser.prototype.querySelectorText = function(xml, q){
@@ -180,34 +198,34 @@ EPUBJS.Parser.prototype.querySelectorText = function(xml, q){
 EPUBJS.Parser.prototype.manifest = function(manifestXml){
 	var baseUrl = this.baseUrl,
 			manifest = {};
-	
+
 	//-- Turn items into an array
 	var selected = manifestXml.querySelectorAll("item"),
 		items = Array.prototype.slice.call(selected);
-		
+
 	//-- Create an object with the id as key
 	items.forEach(function(item){
 		var id = item.getAttribute('id'),
 				href = item.getAttribute('href') || '',
 				type = item.getAttribute('media-type') || '',
 				properties = item.getAttribute('properties') || '';
-		
+
 		manifest[id] = {
 			'href' : href,
 			'url' : baseUrl + href, //-- Absolute URL for loading with a web worker
 			'type' : type,
       'properties' : properties
 		};
-	
+
 	});
-	
+
 	return manifest;
 
 };
 
 EPUBJS.Parser.prototype.spine = function(spineXml, manifest){
 	var spine = [];
-	
+
 	var selected = spineXml.getElementsByTagName("itemref"),
 			items = Array.prototype.slice.call(selected);
 
@@ -232,232 +250,204 @@ EPUBJS.Parser.prototype.spine = function(spineXml, manifest){
 			'url' :  manifest[Id].url,
 			'index' : index,
 			'cfiBase' : cfiBase,
-			'cfi' : "epub(" + cfiBase + ")"
+			'cfi' : "epubcfi(" + cfiBase + ")"
 		};
 		spine.push(vert);
 	});
-	
+
 	return spine;
 };
 
+EPUBJS.Parser.prototype.querySelectorByType = function(html, element, type){
+	var query = html.querySelector(element+'[*|type="'+type+'"]');
+	// Handle IE not supporting namespaced epub:type in querySelector
+	if(query.length === 0) {
+		query = html.querySelectorAll(element);
+		for (var i = 0; i < query.length; i++) {
+			if(query[i].getAttributeNS("http://www.idpf.org/2007/ops", "type") === type) {
+				return query[i];
+			}
+		}
+	} else {
+		return query;
+	}
+};
+
 EPUBJS.Parser.prototype.nav = function(navHtml, spineIndexByURL, bookSpine){
-	var navEl = navHtml.querySelector('nav[*|type="toc"]'), //-- [*|type="toc"] * Doesn't seem to work
-			idCounter = 0;
-	
-	if(!navEl) return [];
-	
-	// Implements `> ol > li`
-	function findListItems(parent){
-		var items = [];
-	
-		Array.prototype.slice.call(parent.childNodes).forEach(function(node){
-			if('ol' == node.tagName){
-				Array.prototype.slice.call(node.childNodes).forEach(function(item){
-					if('li' == item.tagName){
-						items.push(item);
-					}
-				});
-			}
-		});
-		
-		return items;
-	
+	var navElement = this.querySelectorByType(navHtml, "nav", "toc");
+	var navItems = navElement ? navElement.querySelectorAll("ol li") : [];
+	var length = navItems.length;
+	var i;
+	var toc = {};
+	var list = [];
+	var item, parent;
+
+	if(!navItems || length === 0) return list;
+
+	for (i = 0; i < length; ++i) {
+		item = this.navItem(navItems[i], spineIndexByURL, bookSpine);
+		toc[item.id] = item;
+		if(!item.parent) {
+			list.push(item);
+		} else {
+			parent = toc[item.parent];
+			parent.subitems.push(item);
+		}
 	}
-	
-	// Implements `> a, > span`
-	function findAnchorOrSpan(parent){
-		var item = null;
-		
-		Array.prototype.slice.call(parent.childNodes).forEach(function(node){
-			if('a' == node.tagName || 'span' == node.tagName){
-				item = node;
-			}
-		});
-		
-		return item;
+
+	return list;
+};
+
+EPUBJS.Parser.prototype.navItem = function(item, spineIndexByURL, bookSpine){
+	var id = item.getAttribute('id') || false,
+			content = item.querySelector("a, span"),
+			src = content.getAttribute('href') || '',
+			text = content.textContent || "",
+			split = src.split("#"),
+			baseUrl = split[0],
+			spinePos = spineIndexByURL[baseUrl],
+			spineItem = bookSpine[spinePos],
+			subitems = [],
+			parentNode = item.parentNode,
+			parent,
+			cfi = spineItem ? spineItem.cfi : '';
+
+	if(parentNode && parentNode.nodeName === "navPoint") {
+		parent = parentNode.getAttribute('id');
 	}
-	
-	function getTOC(parent){
-		var list = [],
-				nodes = findListItems(parent),
-				items = Array.prototype.slice.call(nodes),
-				length = items.length,
-				node;
-	
-		if(length === 0) return false;
-		
-		items.forEach(function(item){
-			var id = item.getAttribute('id') || false,
-				content = findAnchorOrSpan(item),
-				href = content.getAttribute('href') || '',
-				text = content.textContent || "",
-				split = href.split("#"),
-				baseUrl = split[0],
-				subitems = getTOC(item),
-				spinePos = spineIndexByURL[baseUrl],
-				spineItem = bookSpine[spinePos],
-				cfi = 	spineItem ? spineItem.cfi : '';
-				
-			if(!id) {
-				if(spinePos) {
-					spineItem = bookSpine[spinePos];
-					id = spineItem.id;
-					cfi = spineItem.cfi;
-				} else {
-					id = 'epubjs-autogen-toc-id-' + (idCounter++);
-				}
-			}
-			
-			item.setAttribute('id', id); // Ensure all elements have an id
-			list.push({
-				"id": id,
-				"href": href,
-				"label": text,
-				"subitems" : subitems,
-				"parent" : parent ? parent.getAttribute('id') : null,
-				"cfi" : cfi
-			});
-		
-		});
-	
-		return list;
+
+	if(!id) {
+		if(spinePos) {
+			spineItem = bookSpine[spinePos];
+			id = spineItem.id;
+			cfi = spineItem.cfi;
+		} else {
+			id = 'epubjs-autogen-toc-id-' + EPUBJS.core.uuid();
+			item.setAttribute('id', id);
+		}
 	}
-	
-	return getTOC(navEl);
+
+	return {
+		"id": id,
+		"href": src,
+		"label": text,
+		"spinePos": spinePos,
+		"subitems" : subitems,
+		"parent" : parent,
+		"cfi" : cfi
+	};
 };
 
 EPUBJS.Parser.prototype.toc = function(tocXml, spineIndexByURL, bookSpine){
-	var navMap = tocXml.querySelector("navMap");
-	if(!navMap) return [];
-	
-	function getTOC(parent){
-		var list = [],
-			snapshot = tocXml.evaluate("*[local-name()='navPoint']", parent, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null),
-			length = snapshot.snapshotLength;
-		
-		if(length === 0) return [];
+	var navPoints = tocXml.querySelectorAll("navMap navPoint");
+	var length = navPoints.length;
+	var i;
+	var toc = {};
+	var list = [];
+	var item, parent;
 
-		for ( var i=length-1 ; i >= 0; i-- ) {
-			var item = snapshot.snapshotItem(i);
+	if(!navPoints || length === 0) return list;
 
-			var id = item.getAttribute('id') || false,
-					content = item.querySelector("content"),
-					src = content.getAttribute('src'),
-					navLabel = item.querySelector("navLabel"),
-					text = navLabel.textContent ? navLabel.textContent : "",
-					split = src.split("#"),
-					baseUrl = split[0],
-					spinePos = spineIndexByURL[baseUrl],
-					spineItem = bookSpine[spinePos],
-					subitems = getTOC(item),
-					cfi = 	spineItem ? spineItem.cfi : '';
-
-			if(!id) {
-				if(spinePos) {
-					spineItem = bookSpine[spinePos];
-					id = spineItem.id;
-					cfi = 	spineItem.cfi;
-				} else {
-					id = 'epubjs-autogen-toc-id-' + (idCounter++);
-				}
-			}
-
-			list.unshift({
-						"id": id,
-						"href": src,
-						"label": text,
-						"spinePos": spinePos,
-						"subitems" : subitems,
-						"parent" : parent ? parent.getAttribute('id') : null,
-						"cfi" : cfi
-			});
-
+	for (i = 0; i < length; ++i) {
+		item = this.tocItem(navPoints[i], spineIndexByURL, bookSpine);
+		toc[item.id] = item;
+		if(!item.parent) {
+			list.push(item);
+		} else {
+			parent = toc[item.parent];
+			parent.subitems.push(item);
 		}
-
-		return list;
 	}
 
-	return getTOC(navMap);
+	return list;
 };
 
+EPUBJS.Parser.prototype.tocItem = function(item, spineIndexByURL, bookSpine){
+	var id = item.getAttribute('id') || false,
+			content = item.querySelector("content"),
+			src = content.getAttribute('src'),
+			navLabel = item.querySelector("navLabel"),
+			text = navLabel.textContent ? navLabel.textContent : "",
+			split = src.split("#"),
+			baseUrl = split[0],
+			spinePos = spineIndexByURL[baseUrl],
+			spineItem = bookSpine[spinePos],
+			subitems = [],
+			parentNode = item.parentNode,
+			parent,
+			cfi = spineItem ? spineItem.cfi : '';
+
+	if(parentNode && parentNode.nodeName === "navPoint") {
+		parent = parentNode.getAttribute('id');
+	}
+
+	if(!id) {
+		if(spinePos) {
+			spineItem = bookSpine[spinePos];
+			id = spineItem.id;
+			cfi = spineItem.cfi;
+		} else {
+			id = 'epubjs-autogen-toc-id-' + EPUBJS.core.uuid();
+			item.setAttribute('id', id);
+		}
+	}
+
+	return {
+		"id": id,
+		"href": src,
+		"label": text,
+		"spinePos": spinePos,
+		"subitems" : subitems,
+		"parent" : parent,
+		"cfi" : cfi
+	};
+};
+
+
 EPUBJS.Parser.prototype.pageList = function(navHtml, spineIndexByURL, bookSpine){
-	var navEl = navHtml.querySelector('nav[*|type="page-list"]'),
-			idCounter = 0;
+	var navElement = this.querySelectorByType(navHtml, "nav", "page-list");
+	var navItems = navElement ? navElement.querySelectorAll("ol li") : [];
+	var length = navItems.length;
+	var i;
+	var toc = {};
+	var list = [];
+	var item;
 
-	if(!navEl) return [];
-	
-	// Implements `> ol > li`
-	function findListItems(parent){
-		var items = [];
-	
-		Array.prototype.slice.call(parent.childNodes).forEach(function(node){
-			if('ol' == node.tagName){
-				Array.prototype.slice.call(node.childNodes).forEach(function(item){
-					if('li' == item.tagName){
-						items.push(item);
-					}
-				});
-			}
-		});
-		
-		return items;
-	
-	}
-	
-	// Implements `> a, > span`
-	function findAnchorOrSpan(parent){
-		var item = null;
-		
-		Array.prototype.slice.call(parent.childNodes).forEach(function(node){
-			if('a' == node.tagName || 'span' == node.tagName){
-				item = node;
-			}
-		});
-		
-		return item;
-	}
-	
-	function getPages(parent){
-		var list = [],
-				nodes = findListItems(parent),
-				items = Array.prototype.slice.call(nodes),
-				length = items.length,
-				node;
-	
-		if(length === 0) return false;
-		
-		items.forEach(function(item){
-			var id = item.getAttribute('id') || false,
-				content = findAnchorOrSpan(item),
-				href = content.getAttribute('href') || '',
-				text = content.textContent || "",
-				page = parseInt(text),
-				isCfi = href.indexOf("epubcfi"),
-				split,
-				packageUrl,
-				cfi;
-				
-			if(isCfi != -1) {
-				split = href.split("#");
-				packageUrl = split[0];
-				cfi = split.length > 1 ? split[1] : false;
-				list.push({
-					"cfi" : cfi,
-					"href" : href,
-					"packageUrl" : packageUrl,
-					"page" : page
-				});
-			} else {
-				list.push({
-					"href" : href,
-					"page" : page
-				});
-			}
+	if(!navItems || length === 0) return list;
 
-		});
-	
-		return list;
+	for (i = 0; i < length; ++i) {
+		item = this.pageListItem(navItems[i], spineIndexByURL, bookSpine);
+		list.push(item);
 	}
-	
-	return getPages(navEl);
+
+	return list;
+};
+
+EPUBJS.Parser.prototype.pageListItem = function(item, spineIndexByURL, bookSpine){
+	var id = item.getAttribute('id') || false,
+		content = item.querySelector("a"),
+		href = content.getAttribute('href') || '',
+		text = content.textContent || "",
+		page = parseInt(text),
+		isCfi = href.indexOf("epubcfi"),
+		split,
+		packageUrl,
+		cfi;
+
+	if(isCfi != -1) {
+		split = href.split("#");
+		packageUrl = split[0];
+		cfi = split.length > 1 ? split[1] : false;
+		return {
+			"cfi" : cfi,
+			"href" : href,
+			"packageUrl" : packageUrl,
+			"page" : page
+		};
+	} else {
+		return {
+			"href" : href,
+			"page" : page
+		};
+	}
 };

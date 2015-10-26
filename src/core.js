@@ -14,74 +14,113 @@ EPUBJS.core.getEls = function(classes) {
 EPUBJS.core.request = function(url, type, withCredentials) {
 	var supportsURL = window.URL;
 	var BLOB_RESPONSE = supportsURL ? "blob" : "arraybuffer";
-
 	var deferred = new RSVP.defer();
-
 	var xhr = new XMLHttpRequest();
+	var uri;
 
-	//-- Check from PDF.js: 
+	//-- Check from PDF.js:
 	//   https://github.com/mozilla/pdf.js/blob/master/web/compatibility.js
 	var xhrPrototype = XMLHttpRequest.prototype;
-	
+
+	var handler = function() {
+		var r;
+
+		if (this.readyState != this.DONE) return;
+
+		if (this.status === 200 || (this.status === 0 && this.response) ) { // Android & Firefox reporting 0 for local & blob urls
+			if(type == 'xml'){
+        // If this.responseXML wasn't set, try to parse using a DOMParser from text
+        if(!this.responseXML){
+          r = new DOMParser().parseFromString(this.response, "application/xml");
+        } else {
+          r = this.responseXML;
+        }
+			}else
+			if(type == 'xhtml'){
+        if(!this.responseXML){
+          r = new DOMParser().parseFromString(this.response, "application/xhtml+xml");
+        } else {
+          r = this.responseXML;
+        }
+			}else
+			if(type == 'html'){
+				if(!this.responseXML){
+          r = new DOMParser().parseFromString(this.response, "text/html");
+        } else {
+          r = this.responseXML;
+        }
+			} else
+			if(type == 'json'){
+				r = JSON.parse(this.response);
+			}else
+			if(type == 'blob'){
+
+				if(supportsURL) {
+					r = this.response;
+				} else {
+					//-- Safari doesn't support responseType blob, so create a blob from arraybuffer
+					r = new Blob([this.response]);
+				}
+
+			}else{
+				r = this.response;
+			}
+
+			deferred.resolve(r);
+		} else {
+			deferred.reject({
+				message : this.response,
+				stack : new Error().stack
+			});
+		}
+	};
+
 	if (!('overrideMimeType' in xhrPrototype)) {
 		// IE10 might have response, but not overrideMimeType
 		Object.defineProperty(xhrPrototype, 'overrideMimeType', {
 			value: function xmlHttpRequestOverrideMimeType(mimeType) {}
 		});
 	}
+
+	xhr.open("GET", url, true);
+	xhr.onreadystatechange = handler;
+
 	if(withCredentials) {
 		xhr.withCredentials = true;
 	}
-	xhr.open("GET", url, true);
-	xhr.onreadystatechange = handler;
-	
+
+	// If type isn't set, determine it from the file extension
+	if(!type) {
+		uri = EPUBJS.core.uri(url);
+		type = uri.extension;
+	}
+
 	if(type == 'blob'){
 		xhr.responseType = BLOB_RESPONSE;
 	}
-	
+
 	if(type == "json") {
 		xhr.setRequestHeader("Accept", "application/json");
 	}
-	
+
 	if(type == 'xml') {
-		xhr.overrideMimeType('text/xml');
+		xhr.responseType = "document";
+		xhr.overrideMimeType('text/xml'); // for OPF parsing
 	}
-	
+
+	if(type == 'xhtml') {
+		xhr.responseType = "document";
+	}
+
+	if(type == 'html') {
+		xhr.responseType = "document";
+ 	}
+
+	if(type == "binary") {
+		xhr.responseType = "arraybuffer";
+	}
+
 	xhr.send();
-	
-	function handler() {
-		if (this.readyState === this.DONE) {
-			if (this.status === 200 || this.responseXML ) { //-- Firefox is reporting 0 for blob urls
-				var r;
-				
-				if(type == 'xml'){
-					r = this.responseXML;
-				}else
-				if(type == 'json'){
-					r = JSON.parse(this.response);
-				}else
-				if(type == 'blob'){
-	
-					if(supportsURL) {
-						r = this.response;
-					} else {
-						//-- Safari doesn't support responseType blob, so create a blob from arraybuffer
-						r = new Blob([this.response]);
-					}
-	
-				}else{
-					r = this.response;
-				}
-				
-				deferred.resolve(r);
-			} else {
-				deferred.reject({
-					message : this.response,
-					stack : new Error().stack
-				});
-			}
-		}
-	}
 
 	return deferred.promise;
 };
@@ -115,12 +154,19 @@ EPUBJS.core.uri = function(url){
 				fragment : '',
 				href : url
 			},
+			blob = url.indexOf('blob:'),
 			doubleSlash = url.indexOf('://'),
 			search = url.indexOf('?'),
 			fragment = url.indexOf("#"),
 			withoutProtocol,
 			dot,
 			firstSlash;
+
+	if(blob === 0) {
+		uri.protocol = "blob";
+		uri.base = url.indexOf(0, fragment);
+		return uri;
+	}
 
 	if(fragment != -1) {
 		uri.fragment = url.slice(fragment + 1);
@@ -132,12 +178,12 @@ EPUBJS.core.uri = function(url){
 		url = url.slice(0, search);
 		href = url;
 	}
-	
+
 	if(doubleSlash != -1) {
 		uri.protocol = url.slice(0, doubleSlash);
 		withoutProtocol = url.slice(doubleSlash+3);
 		firstSlash = withoutProtocol.indexOf('/');
-		
+
 		if(firstSlash === -1) {
 			uri.host = uri.path;
 			uri.path = "";
@@ -145,12 +191,12 @@ EPUBJS.core.uri = function(url){
 			uri.host = withoutProtocol.slice(0, firstSlash);
 			uri.path = withoutProtocol.slice(firstSlash);
 		}
-		
-		
+
+
 		uri.origin = uri.protocol + "://" + uri.host;
-		
+
 		uri.directory = EPUBJS.core.folder(uri.path);
-		
+
 		uri.base = uri.origin + uri.directory;
 		// return origin;
 	} else {
@@ -158,7 +204,7 @@ EPUBJS.core.uri = function(url){
 		uri.directory = EPUBJS.core.folder(url);
 		uri.base = uri.directory;
 	}
-	
+
 	//-- Filename
 	uri.filename = url.replace(uri.base, '');
 	dot = uri.filename.lastIndexOf('.');
@@ -171,13 +217,13 @@ EPUBJS.core.uri = function(url){
 //-- Parse out the folder, will return everything before the last slash
 
 EPUBJS.core.folder = function(url){
-	
+
 	var lastSlash = url.lastIndexOf('/');
-	
+
 	if(lastSlash == -1) var folder = '';
-		
+
 	folder = url.slice(0, lastSlash + 1);
-	
+
 	return folder;
 
 };
@@ -209,7 +255,7 @@ EPUBJS.core.dataURLToBlob = function(dataURL) {
 	return new Blob([uInt8Array], {type: contentType});
 };
 
-//-- Load scripts async: http://stackoverflow.com/questions/7718935/load-scripts-asynchronously 
+//-- Load scripts async: http://stackoverflow.com/questions/7718935/load-scripts-asynchronously
 EPUBJS.core.addScript = function(src, callback, target) {
 	var s, r;
 	r = false;
@@ -264,13 +310,13 @@ EPUBJS.core.prefixed = function(unprefixed) {
 		prefixes = ['-Webkit-', '-moz-', '-o-', '-ms-'],
 		upper = unprefixed[0].toUpperCase() + unprefixed.slice(1),
 		length = vendors.length;
-	
-	if (typeof(document.body.style[unprefixed]) != 'undefined') {
+
+	if (typeof(document.documentElement.style[unprefixed]) != 'undefined') {
 		return unprefixed;
 	}
 
 	for ( var i=0; i < length; i++ ) {
-		if (typeof(document.body.style[vendors[i] + upper]) != 'undefined') {
+		if (typeof(document.documentElement.style[vendors[i] + upper]) != 'undefined') {
 			return vendors[i] + upper;
 		}
 	}
@@ -284,11 +330,11 @@ EPUBJS.core.resolveUrl = function(base, path) {
 		uri = EPUBJS.core.uri(path),
 		folders = base.split("/"),
 		paths;
-	
+
 	if(uri.host) {
 		return path;
 	}
-	
+
 	folders.pop();
 
 	paths = path.split("/");
@@ -317,11 +363,11 @@ EPUBJS.core.uuid = function() {
 };
 
 // Fast quicksort insert for sorted array -- based on:
-// http://stackoverflow.com/questions/1344500/efficient-way-to-insert-a-number-into-a-sorted-array-of-numbers 
+// http://stackoverflow.com/questions/1344500/efficient-way-to-insert-a-number-into-a-sorted-array-of-numbers
 EPUBJS.core.insert = function(item, array, compareFunction) {
 	var location = EPUBJS.core.locationOf(item, array, compareFunction);
 	array.splice(location, 0, item);
-	
+
 	return location;
 };
 
@@ -340,12 +386,12 @@ EPUBJS.core.locationOf = function(item, array, compareFunction, _start, _end) {
 	if(end-start <= 0) {
 		return pivot;
 	}
-	
+
 	compared = compareFunction(array[pivot], item);
 	if(end-start === 1) {
 		return compared > 0 ? pivot : pivot + 1;
 	}
-	
+
 	if(compared === 0) {
 		return pivot;
 	}
@@ -410,7 +456,7 @@ EPUBJS.core.queue = function(_scope){
 			// }, 0);
 		}
 	};
-	
+
 	// Run All
 	var flush = function(){
 		while(_q.length) {
@@ -421,11 +467,11 @@ EPUBJS.core.queue = function(_scope){
 	var clear = function(){
 		_q = [];
 	};
-	
+
 	var length = function(){
 		return _q.length;
 	};
-	
+
 	return {
 		"enqueue" : enqueue,
 		"dequeue" : dequeue,
@@ -451,7 +497,7 @@ EPUBJS.core.getElementTreeXPath = function(element) {
 	var paths = [];
 	var 	isXhtml = (element.ownerDocument.documentElement.getAttribute('xmlns') === "http://www.w3.org/1999/xhtml");
 	var index, nodeName, tagName, pathIndex;
-	
+
 	if(element.nodeType === Node.TEXT_NODE){
 		// index = Array.prototype.indexOf.call(element.parentNode.childNodes, element) + 1;
 		index = EPUBJS.core.indexOfTextNode(element) + 1;
@@ -519,6 +565,65 @@ EPUBJS.core.indexOfTextNode = function(textNode){
 		}
 		if(sib == textNode) break;
 	}
-	
+
 	return index;
+};
+
+// Underscore
+EPUBJS.core.defaults = function(obj) {
+  for (var i = 1, length = arguments.length; i < length; i++) {
+    var source = arguments[i];
+    for (var prop in source) {
+      if (obj[prop] === void 0) obj[prop] = source[prop];
+    }
+  }
+  return obj;
+};
+
+EPUBJS.core.extend = function(target) {
+    var sources = [].slice.call(arguments, 1);
+    sources.forEach(function (source) {
+      if(!source) return;
+      Object.getOwnPropertyNames(source).forEach(function(propName) {
+        Object.defineProperty(target, propName, Object.getOwnPropertyDescriptor(source, propName));
+      });
+    });
+    return target;
+};
+
+EPUBJS.core.clone = function(obj) {
+  return EPUBJS.core.isArray(obj) ? obj.slice() : EPUBJS.core.extend({}, obj);
+};
+
+EPUBJS.core.isElement = function(obj) {
+    return !!(obj && obj.nodeType == 1);
+};
+
+EPUBJS.core.isNumber = function(n) {
+  return !isNaN(parseFloat(n)) && isFinite(n);
+};
+
+EPUBJS.core.isString = function(str) {
+  return (typeof str === 'string' || str instanceof String);
+};
+
+EPUBJS.core.isArray = Array.isArray || function(obj) {
+  return Object.prototype.toString.call(obj) === '[object Array]';
+};
+
+// Lodash
+EPUBJS.core.values = function(object) {
+	var index = -1;
+	var props, length, result;
+
+	if(!object) return [];
+
+  props = Object.keys(object);
+  length = props.length;
+  result = Array(length);
+
+  while (++index < length) {
+    result[index] = object[props[index]];
+  }
+  return result;
 };
