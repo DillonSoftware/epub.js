@@ -146,7 +146,7 @@ EPUBJS.EpubCFI.prototype.parse = function(cfiStr) {
 
 	if(pathComponent.indexOf(',') != -1) {
 		// Handle ranges -- not supported yet
-		console.warn("CFI Ranges are not supported");
+		EPUBJS.core.log("CFI Ranges are not supported");
 	}
 
 	path = pathComponent.split('/');
@@ -299,7 +299,7 @@ EPUBJS.EpubCFI.prototype.findParent = function(cfi, _doc) {
 		}
 		// Element can't be found
 		if(typeof element === "undefined") {
-			console.error("No Element For", part, cfi.str);
+			EPUBJS.core.log("No Element For", part, cfi.str);
 			return false;
 		}
 		// Get current element children and continue through steps
@@ -491,7 +491,7 @@ EPUBJS.EpubCFI.prototype.generateRangeFromCfi = function(cfi, _doc) {
 			range.setStart(startContainer, cfi.characterOffset);
 			range.setEnd(startContainer, textLength );
 		} else {
-			console.debug("offset greater than length:", cfi.characterOffset, textLength);
+			EPUBJS.core.log("offset greater than length:", cfi.characterOffset, textLength);
 			range.setStart(startContainer, textLength - 1 );
 			range.setEnd(startContainer, textLength );	
 		}

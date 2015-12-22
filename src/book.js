@@ -205,7 +205,7 @@ EPUBJS.Book.prototype.loadPackage = function(_containerPath){
 
 	packageXml.catch(function(error) {
 		// handle errors in either of the two requests
-		console.error("Could not load book at: "+ containerPath);
+		EPUBJS.core.log("Could not load book at: "+ containerPath);
 		book.trigger("book:loadFailed", containerPath);
 	});
 	return packageXml;
@@ -227,6 +227,7 @@ EPUBJS.Book.prototype.unpack = function(packageXml){
 	book.manifest = book.contents.manifest;
 	book.spine = book.contents.spine;
 	book.spineIndexByURL = book.contents.spineIndexByURL;
+	book.spineIndexByPage = book.contents.spineIndexByPage;
 	book.metadata = book.contents.metadata;
 	if(!book.settings.bookKey) {
 		book.settings.bookKey = book.generateBookKey(book.metadata.identifier);
@@ -251,7 +252,7 @@ EPUBJS.Book.prototype.unpack = function(packageXml){
 
 		book.loadXml(book.settings.navUrl).
 			then(function(navHtml){
-				return parse.nav(navHtml, book.spineIndexByURL, book.spine); // Grab Table of Contents
+				return parse.nav(navHtml, book.spineIndexByURL, book.spine, book.spineIndexByPage); // Grab Table of Contents
 			}).then(function(toc){
 				book.toc = book.contents.toc = toc;
 				book.ready.toc.resolve(book.contents.toc);
@@ -262,7 +263,7 @@ EPUBJS.Book.prototype.unpack = function(packageXml){
 		// Load the optional pageList
 		book.loadXml(book.settings.navUrl).
 			then(function(navHtml){
-				return parse.pageList(navHtml, book.spineIndexByURL, book.spine);
+				return parse.pageList(navHtml, book.spineIndexByURL, book.spine, book.spineIndexByPage);
 			}).then(function(pageList){
 				var epubcfi = new EPUBJS.EpubCFI();
 				var wait = 0; // need to generate a cfi
@@ -304,7 +305,7 @@ EPUBJS.Book.prototype.unpack = function(packageXml){
 
 		book.loadXml(book.settings.tocUrl).
 			then(function(tocXml){
-					return parse.toc(tocXml, book.spineIndexByURL, book.spine); // Grab Table of Contents
+					return parse.toc(tocXml, book.spineIndexByURL, book.spine, book.spineIndexByPage); // Grab Table of Contents
 			}).then(function(toc){
 				book.toc = book.contents.toc = toc;
 				book.ready.toc.resolve(book.contents.toc);
@@ -516,7 +517,7 @@ EPUBJS.Book.prototype.loadChange = function(url){
 	}
 	
 	if(!this._rendering && this.currentChapter && uri.path != chapter.path){
-		console.warn("Miss Match", uri.path, this.currentChapter.absolute);
+		EPUBJS.core.log("Miss Match", uri.path, this.currentChapter.absolute);
 		this.goto(uri.filename);
 	}
 };
@@ -649,7 +650,7 @@ EPUBJS.Book.prototype.renderTo = function(elem){
 	} else if (typeof elem == "string") {
 		this.element = EPUBJS.core.getEl(elem);
 	} else {
-		console.error("Not an Element");
+		EPUBJS.core.log("Not an Element");
 		return;
 	}
 
@@ -661,7 +662,7 @@ EPUBJS.Book.prototype.renderTo = function(elem){
 					return book.startDisplay();
 				});
 
-	// rendered.then(null, function(error) { console.error(error); });
+	// rendered.then(null, function(error) { EPUBJS.core.log(error); });
 
 	return rendered;
 };
@@ -755,7 +756,7 @@ EPUBJS.Book.prototype.displayChapter = function(chap, end, deferred){
 	}
 
 	if(pos < 0 || pos >= this.spine.length){
-		console.warn("Not A Valid Location");
+		EPUBJS.core.log("Not A Valid Location");
 		pos = 0;
 		end = false;
 		cfi = false;
@@ -794,7 +795,7 @@ EPUBJS.Book.prototype.displayChapter = function(chap, end, deferred){
 
 	}, function(error) {
 		// handle errors in either of the two requests
-		console.error("Could not load Chapter: "+ chapter.absolute);
+		EPUBJS.core.log("Could not load Chapter: "+ chapter.absolute);
 		book.trigger("book:chapterLoadFailed", chapter.absolute);
 		book._rendering = false;
 		defer.reject(error);
@@ -891,14 +892,14 @@ EPUBJS.Book.prototype.gotoCfi = function(cfiString, defer){
 			deferred = defer || new RSVP.defer();
 
 	if(!this.isRendered) {
-		console.warn("Not yet Rendered");
+		EPUBJS.core.log("Not yet Rendered");
 		this.settings.previousLocationCfi = cfiString;
 		return false;
 	}
 
 	// Currently going to a chapter
 	if(this._moving || this._rendering) {
-		console.warn("Renderer is moving");
+		EPUBJS.core.log("Renderer is moving");
 		this._gotoQ.enqueue("gotoCfi", [cfiString, deferred]);
 		return false;
 	}
@@ -1098,7 +1099,7 @@ EPUBJS.Book.prototype.addHeadTag = function(tag, attrs) {
 };
 
 EPUBJS.Book.prototype.useSpreads = function(use) {
-	console.warn("useSpreads is deprecated, use forceSingle or set a layoutOveride instead");
+	EPUBJS.core.log("useSpreads is deprecated, use forceSingle or set a layoutOveride instead");
 	if(use === false) {
 		this.forceSingle(true);
 	} else {
@@ -1251,14 +1252,26 @@ EPUBJS.Book.prototype.parseLayoutProperties = function(metadata){
 RSVP.EventTarget.mixin(EPUBJS.Book.prototype);
 
 //-- Handle RSVP Errors
-RSVP.on('error', function(event) {
-	//console.error(event, event.detail);
+RSVP.on('error', function(error) {
+	if(error.detail){
+		EPUBJS.core.log(error.detail.message);
+		EPUBJS.core.log(error.detail.stack);
+	} else {
+		EPUBJS.core.log(error.message);
+		EPUBJS.core.log(error.stack);
+	}
 });
 
 RSVP.configure('instrument', true); //-- true | will logging out all RSVP rejections
 // RSVP.on('created', listener);
 // RSVP.on('chained', listener);
 // RSVP.on('fulfilled', listener);
-RSVP.on('rejected', function(event){
-	console.error(event.detail.message, event.detail.stack);
+RSVP.on('rejected', function(error){
+	if(error.detail){
+		EPUBJS.core.log(error.detail.message);
+		EPUBJS.core.log(error.detail.stack);
+	} else {
+		EPUBJS.core.log(error.message);
+		EPUBJS.core.log(error.stack);
+	}
 });

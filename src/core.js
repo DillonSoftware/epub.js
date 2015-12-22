@@ -1,5 +1,13 @@
 var EPUBJS = EPUBJS || {};
-EPUBJS.core = {};
+EPUBJS.core = {
+	debug: false
+};
+
+EPUBJS.core.log = function(msg) {
+	if(this.debug){
+		EPUBJS.core.log(msg);
+	}
+};
 
 //-- Get a element for an id
 EPUBJS.core.getEl = function(elem) {
@@ -29,10 +37,11 @@ EPUBJS.core.request = function(url, type, withCredentials) {
 			value: function xmlHttpRequestOverrideMimeType(mimeType) {}
 		});
 	}
+
+	xhr.open("GET", url, true);
 	if(withCredentials) {
 		xhr.withCredentials = true;
 	}
-	xhr.open("GET", url, true);
 	xhr.onreadystatechange = handler;
 	
 	if(type == 'blob'){
@@ -211,20 +220,18 @@ EPUBJS.core.dataURLToBlob = function(dataURL) {
 
 //-- Load scripts async: http://stackoverflow.com/questions/7718935/load-scripts-asynchronously 
 EPUBJS.core.addScript = function(src, callback, target) {
-	var s, r;
-	r = false;
-	s = document.createElement('script');
-	s.type = 'text/javascript';
-	s.async = false;
-	s.src = src;
+	target = target || document.body;
+	var r = false;
+	var s = document.createElement('script');
+	s.setAttribute('type','text/javascript');
 	s.onload = s.onreadystatechange = function() {
 		if ( !r && (!this.readyState || this.readyState == 'complete') ) {
 			r = true;
 			if(callback) callback();
 		}
 	};
-	target = target || document.body;
 	target.appendChild(s);
+	s.setAttribute('src',src);
 };
 
 EPUBJS.core.addScripts = function(srcArr, callback, target) {
@@ -243,20 +250,19 @@ EPUBJS.core.addScripts = function(srcArr, callback, target) {
 };
 
 EPUBJS.core.addCss = function(src, callback, target) {
-	var s, r;
-	r = false;
-	s = document.createElement('link');
-	s.type = 'text/css';
-	s.rel = "stylesheet";
-	s.href = src;
+	target = target || document.body;
+	var r = false;
+	var s = document.createElement('link');
+	s.setAttribute('type','text/css');
+	s.setAttribute('rel','stylesheet');
 	s.onload = s.onreadystatechange = function() {
 		if ( !r && (!this.readyState || this.readyState == 'complete') ) {
 			r = true;
 			if(callback) callback();
 		}
 	};
-	target = target || document.body;
 	target.appendChild(s);
+	s.setAttribute('href',src);
 };
 
 EPUBJS.core.prefixed = function(unprefixed) {

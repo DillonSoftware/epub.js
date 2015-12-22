@@ -93,7 +93,7 @@ EPUBJS.replace.stylesheets = function(_store, full) {
 			deferred.resolve(url);
 
 		}, function(e) {
-			console.error(e);
+			EPUBJS.core.log(e);
 		});
 		
 	});

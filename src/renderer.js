@@ -15,7 +15,7 @@ EPUBJS.Renderer = function(renderMethod, hidden) {
 	if(renderMethod && typeof(EPUBJS.Render[renderMethod]) != "undefined"){
 		this.render = new EPUBJS.Render[renderMethod]();
 	} else {
-		console.error("Not a Valid Rendering Method");
+		EPUBJS.core.log("Not a Valid Rendering Method");
 	}
 
 	// Listen for load events
@@ -99,7 +99,7 @@ EPUBJS.Renderer.prototype.initialize = function(element, width, height){
 EPUBJS.Renderer.prototype.displayChapter = function(chapter, globalLayout){
 	var store = false;
 	if(this._moving) {
-		console.error("Rendering In Progress");
+		EPUBJS.core.log("Rendering In Progress");
 		return;
 	}
 	this._moving = true;
@@ -204,7 +204,7 @@ EPUBJS.Renderer.prototype.loaded = function(url){
 	this.trigger("render:loaded", url);
 	// var uri = EPUBJS.core.uri(url);
 	// var relative = uri.path.replace(book.bookUrl, '');
-	// console.log(url, uri, relative);
+	// EPUBJS.core.log(url, uri, relative);
 };
 
 /**
@@ -385,7 +385,7 @@ EPUBJS.Renderer.prototype.applyHeadTags = function(headTags) {
 
 EPUBJS.Renderer.prototype.page = function(pg){
 	if(!this.pageMap) {
-		console.warn("pageMap not set, queuing");
+		EPUBJS.core.log("pageMap not set, queuing");
 		this._q.enqueue("page", arguments);
 		return true;
 	}
@@ -514,7 +514,7 @@ EPUBJS.Renderer.prototype.walk = function(node, x, y) {
 
 		ITER++;
 		if(ITER > STOP) {
-			console.error("ENDLESS LOOP");
+			EPUBJS.core.log("ENDLESS LOOP");
 			break;
 		}
 
@@ -529,7 +529,7 @@ EPUBJS.Renderer.prototype.containsPoint = function(el, x, y){
 	var left;
 	if(el && typeof el.getBoundingClientRect === 'function'){
 		rect = el.getBoundingClientRect();
-		// console.log(el, rect, x, y);
+		// EPUBJS.core.log(el, rect, x, y);
 
 		if( rect.width !== 0 &&
 				rect.height !== 0 && // Element not visible
@@ -828,7 +828,7 @@ EPUBJS.Renderer.prototype.pagesInCurrentChapter = function() {
 	var length;
 
 	if(!this.pageMap) {
-		console.warn("page map not loaded");
+		EPUBJS.core.log("page map not loaded");
 		return false;
 	}
 
@@ -847,7 +847,7 @@ EPUBJS.Renderer.prototype.currentRenderedPage = function(){
 	var pg;
 
 	if(!this.pageMap) {
-		console.warn("page map not loaded");
+		EPUBJS.core.log("page map not loaded");
 		return false;
 	}
 
@@ -866,7 +866,7 @@ EPUBJS.Renderer.prototype.getRenderedPagesLeft = function(){
 	var pagesLeft;
 
 	if(!this.pageMap) {
-		console.warn("page map not loaded");
+		EPUBJS.core.log("page map not loaded");
 		return false;
 	}
 
@@ -888,7 +888,7 @@ EPUBJS.Renderer.prototype.getVisibleRangeCfi = function(){
 	var startRange, endRange;
 
 	if(!this.pageMap) {
-		console.warn("page map not loaded");
+		EPUBJS.core.log("page map not loaded");
 		return false;
 	}
 
@@ -907,7 +907,7 @@ EPUBJS.Renderer.prototype.getVisibleRangeCfi = function(){
 	}
 
 	if(!startRange) {
-		console.warn("page range miss:", pg, this.pageMap);
+		EPUBJS.core.log("page range miss:", pg, this.pageMap);
 		startRange = this.pageMap[this.pageMap.length-1];
 		endRange = startRange;
 	}
@@ -1169,7 +1169,7 @@ EPUBJS.Renderer.prototype.replaceWithStored = function(query, attr, func, callba
 				link.onerror = function(e){
 					clearTimeout(timeout);
 					done(url, full);
-					console.error(e);
+					EPUBJS.core.log(e);
 				};
 
 				if(query == "image") {

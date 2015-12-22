@@ -57,7 +57,7 @@ EPUBJS.Render.Iframe.prototype.load = function(chapter){
 		};
 		
 		this.iframe.onerror = function(e) {
-			//console.error("Error Loading Contents", e);
+			//EPUBJS.core.log("Error Loading Contents", e);
 			deferred.reject({
 					message : "Error Loading Contents: " + e,
 					stack : new Error().stack

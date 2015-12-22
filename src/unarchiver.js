@@ -13,7 +13,7 @@ EPUBJS.Unarchiver = function(url){
 
 //-- Load the zip lib and set the workerScriptsPath
 EPUBJS.Unarchiver.prototype.loadLib = function(callback){
-	if(typeof(zip) == "undefined") console.error("Zip lib not loaded");
+	if(typeof(zip) == "undefined") EPUBJS.core.log("Zip lib not loaded");
 	
 	/*
 	//-- load script
@@ -23,7 +23,7 @@ EPUBJS.Unarchiver.prototype.loadLib = function(callback){
 		callback();
 	}.bind(this));
 	*/
-	// console.log(this.libPath)
+	// EPUBJS.core.log(this.libPath)
 	zip.workerScriptsPath = this.libPath;
 };
 
@@ -84,7 +84,7 @@ EPUBJS.Unarchiver.prototype.getText = function(url, encoding){
 	var _URL = window.URL || window.webkitURL || window.mozURL;
 
 	if(!entry) {
-		console.warn("File not found in the contained epub:", url);
+		EPUBJS.core.log("File not found in the contained epub:", url);
 		return deferred.promise;
 	}
 
@@ -102,7 +102,7 @@ EPUBJS.Unarchiver.prototype.revokeUrl = function(url){
 };
 
 EPUBJS.Unarchiver.prototype.failed = function(error){
-	console.error(error);
+	EPUBJS.core.log(error);
 };
 
 EPUBJS.Unarchiver.prototype.afterSaved = function(error){
@@ -129,7 +129,7 @@ EPUBJS.Unarchiver.prototype.toStorage = function(entries){
 		timeout += delay;
 	});
 	
-	console.log("time", timeout);
+	EPUBJS.core.log("time", timeout);
 	
 	//entries.forEach(this.saveEntryFileToStorage.bind(this));
 };
