@@ -1,3 +1,8 @@
+var isIE = false;
+if (navigator.userAgent.indexOf('MSIE') !== -1 || navigator.appVersion.indexOf('Trident/') > 0) {
+	isIE = true;
+}
+
 var EPUBJS = EPUBJS || {};
 EPUBJS.core = {
 	debug: false
@@ -19,7 +24,7 @@ EPUBJS.core.getEls = function(classes) {
 	return document.getElementsByClassName(classes);
 };
 
-EPUBJS.core.request = function(url, type, withCredentials) {
+EPUBJS.core.request = function (url, type, withCredentials) {
 	var supportsURL = window.URL;
 	var BLOB_RESPONSE = supportsURL ? "blob" : "arraybuffer";
 
@@ -27,68 +32,71 @@ EPUBJS.core.request = function(url, type, withCredentials) {
 
 	var xhr = new XMLHttpRequest();
 
-	//-- Check from PDF.js: 
+	//-- Check from PDF.js:
 	//   https://github.com/mozilla/pdf.js/blob/master/web/compatibility.js
 	var xhrPrototype = XMLHttpRequest.prototype;
-	
+
 	if (!('overrideMimeType' in xhrPrototype)) {
 		// IE10 might have response, but not overrideMimeType
 		Object.defineProperty(xhrPrototype, 'overrideMimeType', {
-			value: function xmlHttpRequestOverrideMimeType(mimeType) {}
+			value: function xmlHttpRequestOverrideMimeType(mimeType) {
+			}
 		});
 	}
 
 	xhr.open("GET", url, true);
-	if(withCredentials) {
+
+	if (withCredentials) {
 		xhr.withCredentials = true;
 	}
-	xhr.onreadystatechange = handler;
-	
-	if(type == 'blob'){
+
+	xhr.onload = handler;
+
+	if (type == 'blob') {
 		xhr.responseType = BLOB_RESPONSE;
 	}
-	
-	if(type == "json") {
+
+	if (type == "json") {
 		xhr.setRequestHeader("Accept", "application/json");
 	}
-	
-	if(type == 'xml') {
-		xhr.overrideMimeType('text/xml');
+
+	if (type == 'xml') {
+		if (isIE)
+			xhr.responseType = 'document';
+		else
+			xhr.overrideMimeType('text/xml');
 	}
-	
+
 	xhr.send();
-	
+
 	function handler() {
-		if (this.readyState === this.DONE) {
-			if (this.status === 200 || this.responseXML ) { //-- Firefox is reporting 0 for blob urls
-				var r;
-				
-				if(type == 'xml'){
-					r = this.responseXML;
-				}else
-				if(type == 'json'){
-					r = JSON.parse(this.response);
-				}else
-				if(type == 'blob'){
-	
-					if(supportsURL) {
-						r = this.response;
-					} else {
-						//-- Safari doesn't support responseType blob, so create a blob from arraybuffer
-						r = new Blob([this.response]);
-					}
-	
-				}else{
+		if (this.status === 200 || this.responseXML) { //-- Firefox is reporting 0 for blob urls
+			var r;
+
+			if (type == 'xml') {
+				r = this.responseXML;
+				r.evaluate = document.evaluate;
+			} else if (type == 'json') {
+				r = JSON.parse(this.response);
+			} else if (type == 'blob') {
+
+				if (supportsURL) {
 					r = this.response;
+				} else {
+					//-- Safari doesn't support responseType blob, so create a blob from arraybuffer
+					r = new Blob([this.response]);
 				}
-				
-				deferred.resolve(r);
+
 			} else {
-				deferred.reject({
-					message : this.response,
-					stack : new Error().stack
-				});
+				r = this.response;
 			}
+
+			deferred.resolve(r);
+		} else {
+			deferred.reject({
+				message: this.response,
+				stack: new Error().stack
+			});
 		}
 	}
 
@@ -499,18 +507,21 @@ EPUBJS.core.nsResolver = function(prefix) {
 
 //https://stackoverflow.com/questions/13482352/xquery-looking-for-text-with-single-quote/13483496#13483496
 EPUBJS.core.cleanStringForXpath = function(str)  {
-		var parts = str.match(/[^'"]+|['"]/g);
-		parts = parts.map(function(part){
-				if (part === "'")  {
-						return '\"\'\"'; // output "'"
-				}
+	var parts = str ? str.match(/[^'"]+|['"]/g) : [];
+	if(parts.length === 0){
+		return "''";
+	}
+	parts = parts.map(function (part) {
+		if (part === "'") {
+			return '\"\'\"'; // output "'"
+		}
 
-				if (part === '"') {
-						return "\'\"\'"; // output '"'
-				}
-				return "\'" + part + "\'";
-		});
-		return "concat(\'\'," + parts.join(",") + ")";
+		if (part === '"') {
+			return "\'\"\'"; // output '"'
+		}
+		return "\'" + part + "\'";
+	});
+	return "concat(\'\'," + parts.join(",") + ")";
 };
 
 EPUBJS.core.indexOfTextNode = function(textNode){

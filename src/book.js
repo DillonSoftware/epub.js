@@ -928,15 +928,13 @@ EPUBJS.Book.prototype.gotoCfi = function(cfiString, defer){
 
 		this.currentChapter = new EPUBJS.Chapter(spineItem, this.store);
 
-		if(this.currentChapter) {
+		if (this.currentChapter) {
 			this.spinePos = spinePos;
-			render = this.renderer.displayChapter(this.currentChapter, this.globalLayoutProperties);
-
-			this.renderer.gotoCfi(cfi);
-			render.then(function(rendered){
-					this._moving = false;
-					deferred.resolve(rendered.currentLocationCfi);
+			this.renderer.displayChapter(this.currentChapter, this.globalLayoutProperties).then(function (rendered) {
+				this._moving = false;
+				deferred.resolve(rendered.currentLocationCfi);
 			}.bind(this));
+			this.renderer.gotoCfi(cfi);
 		}
 	}
 
@@ -1238,9 +1236,9 @@ EPUBJS.Book.prototype._needsAssetReplacement = function(){
 
 //-- http://www.idpf.org/epub/fxl/
 EPUBJS.Book.prototype.parseLayoutProperties = function(metadata){
-	var layout = (this.layoutOveride && this.layoutOveride.layout) || metadata.layout || "reflowable";
-	var spread = (this.layoutOveride && this.layoutOveride.spread) || metadata.spread || "auto";
-	var orientation = (this.layoutOveride && this.layoutOveride.orientation) || metadata.orientation || "auto";
+	var layout = (this.settings.layoutOveride && this.settings.layoutOveride.layout) || metadata.layout || "reflowable";
+	var spread = (this.settings.layoutOveride && this.settings.layoutOveride.spread) || metadata.spread || "auto";
+	var orientation = (this.settings.layoutOveride && this.settings.layoutOveride.orientation) || metadata.orientation || "auto";
 	return {
 		layout : layout,
 		spread : spread,

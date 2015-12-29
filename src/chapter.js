@@ -204,7 +204,7 @@ EPUBJS.Chapter.prototype.find = function(_query){
 		var pos;
 		var last = -1;
 		var excerpt;
-		var limit = 150;
+		var limit = 80;
 		
 		while (pos != -1) {
 			pos = text.indexOf(query, last + 1);
@@ -256,19 +256,30 @@ EPUBJS.Chapter.prototype.find = function(_query){
 };
 
 
-EPUBJS.Chapter.prototype.textSprint = function(root, func) {
-	var treeWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-			acceptNode: function (node) {
-					if (node.data && ! /^\s*$/.test(node.data) ) {
-						return NodeFilter.FILTER_ACCEPT;
-					} else {
-						return NodeFilter.FILTER_REJECT;
-					}
+EPUBJS.Chapter.prototype.textSprint = function (root, func) {
+	var treeWalker = document.createTreeWalker(root,
+		NodeFilter.SHOW_TEXT,
+		function (node) {
+			if (node.data && !/^\s*$/.test(node.data)) {
+				return NodeFilter.FILTER_ACCEPT;
+			} else {
+				return NodeFilter.FILTER_REJECT;
 			}
-	}, false);
+		},
+		false
+	);
 	var node;
-	while ((node = treeWalker.nextNode())) {
-		func(node);
+	try {
+		node = treeWalker.nextNode();
+	} catch (e) {
+		EPUBJS.core.log(e);
 	}
-
+	while (node) {
+		func(node);
+		try {
+			node = treeWalker.nextNode();
+		} catch (e) {
+			EPUBJS.core.log(e);
+		}
+	}
 };

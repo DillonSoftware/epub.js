@@ -562,10 +562,19 @@ EPUBJS.Renderer.prototype.textSprint = function(root, func) {
 EPUBJS.Renderer.prototype.sprint = function(root, func) {
 	var treeWalker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null, false);
 	var node;
-	while ((node = treeWalker.nextNode())) {
-		func(node);
+	try {
+		node = treeWalker.nextNode();
+	} catch (e) {
+		EPUBJS.core.log(e);
 	}
-
+	while (node) {
+		func(node);
+		try {
+			node = treeWalker.nextNode();
+		} catch (e) {
+			EPUBJS.core.log(e);
+		}
+	}
 };
 
 EPUBJS.Renderer.prototype.mapPage = function(){
@@ -945,6 +954,9 @@ EPUBJS.Renderer.prototype.gotoCfi = function(cfi){
 		if(range) {
 			pg = this.render.getPageNumberByRect(range.getBoundingClientRect());
 			this.page(pg);
+
+			// Reset the current location cfi to requested cfi
+			this.currentLocationCfi = cfi.str;
 		}
 	}
 };

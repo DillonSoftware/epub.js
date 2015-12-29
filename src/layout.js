@@ -123,26 +123,32 @@ EPUBJS.Layout.Fixed = function(){
 	this.documentElement = null;
 };
 
-EPUBJS.Layout.Fixed = function(documentElement, _width, _height, _gap){
+EPUBJS.Layout.Fixed.prototype.format = function(documentElement, _width, _height, _gap){
 	var columnWidth = EPUBJS.core.prefixed('columnWidth');
-	var viewport = documentElement.querySelector("[name=viewport");
+	var viewport = documentElement.querySelector('[name="viewport"]');
 	var content;
 	var contents;
 	var width, height;
 
 	this.documentElement = documentElement;
 	/**
-	* check for the viewport size
-	* <meta name="viewport" content="width=1024,height=697" />
-	*/
+	 * check for the viewport size
+	 * <meta name="viewport" content="width=1024,height=697" />
+	 */
 	if(viewport && viewport.hasAttribute("content")) {
 		content = viewport.getAttribute("content");
 		contents = content.split(',');
 		if(contents[0]){
 			width = contents[0].replace("width=", '');
+			if(width.indexOf("px") > -1){
+				width = width.substr(0, width.length - 2);
+			}
 		}
 		if(contents[1]){
 			height = contents[1].replace("height=", '');
+			if(height.indexOf("px") > -1){
+				height = height.substr(0, height.length - 2);
+			}
 		}
 	}
 
@@ -154,7 +160,7 @@ EPUBJS.Layout.Fixed = function(documentElement, _width, _height, _gap){
 	documentElement.style[columnWidth] = "auto";
 
 	//-- Scroll
-	documentElement.style.overflow = "auto";
+	documentElement.style.overflowY = "hidden";
 
 	this.colWidth = width;
 	this.gap = 0;
