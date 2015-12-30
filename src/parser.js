@@ -98,7 +98,7 @@ EPUBJS.Parser.prototype.packageContents = function(packageXml, baseUrl){
 
 	spineIndexByPage = {};
 	spine.forEach(function(item){
-		spineIndexByPage[this.hrefWithoutPathAndExt(item.href)] = item.index;
+		spineIndexByPage[EPUBJS.core.hrefWithoutPathAndExt(item.href)] = item.index;
 	});
 
 	return {
@@ -112,14 +112,6 @@ EPUBJS.Parser.prototype.packageContents = function(packageXml, baseUrl){
 		'spineIndexByURL' : spineIndexByURL,
 		'spineIndexByPage' : spineIndexByPage
 	};
-};
-
-EPUBJS.Parser.prototype.hrefWithoutPathAndExt = function(href) {
-	var matches = href.match(/([^\/]+)(?=\.\w*\.*\w+.*$)/);
-	if (matches && matches.length > 0) {
-		return matches[0];
-	}
-	return href;
 };
 
 //-- Find TOC NAV: media-type="application/xhtml+xml" href="toc.ncx"
@@ -309,7 +301,7 @@ EPUBJS.Parser.prototype.nav = function(navHtml, spineIndexByURL, bookSpine, spin
 				split = href.split("#"),
 				baseUrl = split[0],
 				subitems = getTOC(item),
-				spinePos = spineIndexByURL[baseUrl] || spineIndexByPage[this.hrefWithoutPathAndExt(href)],
+				spinePos = spineIndexByURL[baseUrl] || spineIndexByPage[EPUBJS.core.hrefWithoutPathAndExt(href)],
 				spineItem = bookSpine[spinePos],
 				cfi = 	spineItem ? spineItem.cfi : '';
 				
@@ -363,7 +355,7 @@ EPUBJS.Parser.prototype.toc = function(tocXml, spineIndexByURL, bookSpine, spine
 				text = navLabel.textContent ? navLabel.textContent : "",
 				split = src.split("#"),
 				baseUrl = split[0],
-				spinePos = spineIndexByURL[baseUrl] || spineIndexByPage[this.hrefWithoutPathAndExt(src)],
+				spinePos = spineIndexByURL[baseUrl] || spineIndexByPage[EPUBJS.core.hrefWithoutPathAndExt(src)],
 				spineItem = bookSpine[spinePos],
 				subitems = getTOC(item),
 				cfi = 	spineItem ? spineItem.cfi : '';

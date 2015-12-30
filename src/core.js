@@ -539,3 +539,11 @@ EPUBJS.core.indexOfTextNode = function(textNode){
 	
 	return index;
 };
+
+EPUBJS.core.hrefWithoutPathAndExt = function(href) {
+	var matches = href.match(/([^\/]+)(?=\.\w*\.*\w+.*$)/);
+	if (matches && matches.length > 0) {
+		return matches[0];
+	}
+	return href;
+};
